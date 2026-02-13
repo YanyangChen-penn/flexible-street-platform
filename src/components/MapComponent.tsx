@@ -12,8 +12,11 @@ interface MapComponentProps {
   selectedTimeBin?: string;
   onAnchorClick?: (anchor: Anchor) => void;
   showTraffic?: boolean;
+  showStreetCenterline?: boolean;
+  showPOI?: boolean;
 }
 
+/* ── Anchor marker palette ── */
 const PAL: Record<string, { c: string; g: string }> = {
   'education':     { c: '#6B9BF7', g: '107,155,247' },
   'food-beverage': { c: '#F06B5B', g: '240,107,91'  },
@@ -29,11 +32,43 @@ const PAL: Record<string, { c: string; g: string }> = {
 };
 const FB = { c: '#94A3B8', g: '148,163,184' };
 
+/* ── Street Centerline color palette ── */
+export const STREET_COLORS: [string, string][] = [
+  ['CITY',           '#6366F1'],
+  ['STATE',          '#F43F5E'],
+  ['SEPTA',          '#F59E0B'],
+  ['PRIVATE',        '#8B5CF6'],
+  ['FAIRMOUNT PARK', '#10B981'],
+  ['PHA',            '#3B82F6'],
+  ['PIDC',           '#06B6D4'],
+  ['DRPA',           '#EC4899'],
+  ['FAM',            '#14B8A6'],
+  ['AIRPORT',        '#A78BFA'],
+  ['BCBC',           '#FB923C'],
+  ['STRICKEN',       '#EF4444'],
+  ['TOWNSHIP',       '#67E8F9'],
+];
+export const STREET_FALLBACK = '#475569';
+
+/* ── POI category palette ── */
+export const POI_COLORS: [string, string][] = [
+  ['Education',     '#60A5FA'],   // blue
+  ['Healthcare',    '#F87171'],   // red
+  ['Food & Dining', '#FB923C'],   // orange
+  ['Religious',     '#C084FC'],   // purple
+  ['Community',     '#34D399'],   // emerald
+  ['Public Safety', '#FBBF24'],   // amber
+  ['Culture',       '#F472B6'],   // pink
+  ['Finance',       '#38BDF8'],   // sky
+  ['Transport',     '#A78BFA'],   // violet
+];
+const POI_FALLBACK = '#64748B';
+
+/* ── CSS injection for anchor markers ── */
 let _inj = false;
 function injectCSS() {
   if (_inj) return;
   _inj = true;
-
   document.head.insertAdjacentHTML('beforeend', `<style id="anch-css">
 @keyframes a-pulse {
   0%   { opacity: 0;    transform: scale(1);   }
@@ -44,72 +79,16 @@ function injectCSS() {
   0%, 100% { box-shadow: 0 0 5px 2px rgba(var(--g),0.4); }
   50%      { box-shadow: 0 0 14px 4px rgba(var(--g),0.6); }
 }
-
-.am {
-  width: 0; height: 0;
-  position: relative;
-  overflow: visible;
-  cursor: pointer;
-}
-.am > div {
-  position: absolute;
-  border-radius: 50%;
-}
-
-/* Core dot: 14x14 */
-.am .dt {
-  width: 14px; height: 14px;
-  top: -7px; left: -7px;
-  background: var(--c);
-  border: 2.5px solid rgba(255,255,255,0.85);
-  animation: a-glow 2.8s ease-in-out infinite;
-  z-index: 4;
-  transition: all 0.15s ease;
-}
-
-/* Halo: 28x28 */
-.am .hl {
-  width: 28px; height: 28px;
-  top: -14px; left: -14px;
-  background: radial-gradient(circle, rgba(var(--g),0.3) 0%, transparent 70%);
-  z-index: 2;
-  pointer-events: none;
-  transition: all 0.15s ease;
-}
-
-/* Pulse ring: 16x16 */
-.am .rp {
-  width: 16px; height: 16px;
-  top: -8px; left: -8px;
-  background: rgba(var(--g),0.2);
-  opacity: 0;
-  animation: a-pulse 3s ease-out infinite;
-  z-index: 1;
-  pointer-events: none;
-}
-.am .rp.b { animation-delay: 1s; }
-.am .rp.c { animation-delay: 2s; }
-
-/* Click hitbox: 40x40 */
-.am .hit {
-  width: 40px; height: 40px;
-  top: -20px; left: -20px;
-  z-index: 5;
-  background: transparent;
-}
-
-/* Hover */
-.am:hover .dt {
-  width: 18px; height: 18px;
-  top: -9px; left: -9px;
-  box-shadow: 0 0 20px 6px rgba(var(--g),0.7);
-  border-color: #fff;
-}
-.am:hover .hl {
-  width: 36px; height: 36px;
-  top: -18px; left: -18px;
-  background: radial-gradient(circle, rgba(var(--g),0.45) 0%, transparent 70%);
-}
+.am { width:0;height:0;position:relative;overflow:visible;cursor:pointer; }
+.am > div { position:absolute;border-radius:50%; }
+.am .dt { width:14px;height:14px;top:-7px;left:-7px;background:var(--c);border:2.5px solid rgba(255,255,255,0.85);animation:a-glow 2.8s ease-in-out infinite;z-index:4;transition:all .15s ease; }
+.am .hl { width:28px;height:28px;top:-14px;left:-14px;background:radial-gradient(circle,rgba(var(--g),0.3) 0%,transparent 70%);z-index:2;pointer-events:none;transition:all .15s ease; }
+.am .rp { width:16px;height:16px;top:-8px;left:-8px;background:rgba(var(--g),0.2);opacity:0;animation:a-pulse 3s ease-out infinite;z-index:1;pointer-events:none; }
+.am .rp.b { animation-delay:1s; }
+.am .rp.c { animation-delay:2s; }
+.am .hit { width:40px;height:40px;top:-20px;left:-20px;z-index:5;background:transparent; }
+.am:hover .dt { width:18px;height:18px;top:-9px;left:-9px;box-shadow:0 0 20px 6px rgba(var(--g),0.7);border-color:#fff; }
+.am:hover .hl { width:36px;height:36px;top:-18px;left:-18px;background:radial-gradient(circle,rgba(var(--g),0.45) 0%,transparent 70%); }
 </style>`);
 }
 
@@ -119,10 +98,7 @@ function mkEl(type: string): HTMLDivElement {
   w.className = 'am';
   w.style.setProperty('--c', p.c);
   w.style.setProperty('--g', p.g);
-
-  for (const cls of ['rp', 'rp b', 'rp c']) {
-    const r = document.createElement('div'); r.className = cls; w.appendChild(r);
-  }
+  for (const cls of ['rp', 'rp b', 'rp c']) { const r = document.createElement('div'); r.className = cls; w.appendChild(r); }
   const hl = document.createElement('div'); hl.className = 'hl'; w.appendChild(hl);
   const dt = document.createElement('div'); dt.className = 'dt'; w.appendChild(dt);
   const hit = document.createElement('div'); hit.className = 'hit'; w.appendChild(hit);
@@ -130,15 +106,20 @@ function mkEl(type: string): HTMLDivElement {
 }
 
 export const MapComponent = ({
-  anchors, visibleLayers, selectedTimeBin: _t, onAnchorClick, showTraffic = false,
+  anchors, visibleLayers, selectedTimeBin: _t, onAnchorClick,
+  showTraffic = false, showStreetCenterline = false, showPOI = false,
 }: MapComponentProps) => {
   const ctr = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const mrs = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [ready, setReady] = useState(false);
+  const geojsonLoaded = useRef(false);
+  const poiLoaded = useRef(false);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
 
   useEffect(injectCSS, []);
 
+  /* ── Init map ── */
   useEffect(() => {
     if (!ctr.current || map.current) return;
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -151,10 +132,10 @@ export const MapComponent = ({
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.current.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'imperial' }), 'bottom-right');
     map.current.on('load', () => setReady(true));
-    map.current.on('error', (e: any) => console.error('Map error:', e));
     return () => { map.current?.remove(); map.current = null; };
   }, []);
 
+  /* ── Traffic layer ── */
   useEffect(() => {
     if (!map.current || !ready) return;
     if (showTraffic) {
@@ -176,11 +157,107 @@ export const MapComponent = ({
         });
       } else map.current.setLayoutProperty('traffic-flow','visibility','visible');
     } else {
-      if (map.current.getLayer('traffic-flow'))
+      if (map.current?.getLayer('traffic-flow'))
         map.current.setLayoutProperty('traffic-flow','visibility','none');
     }
   }, [ready, showTraffic]);
 
+  /* ── Street Centerline layer ── */
+  useEffect(() => {
+    if (!map.current || !ready) return;
+    if (showStreetCenterline) {
+      if (!geojsonLoaded.current && !map.current.getSource('street-centerline')) {
+        const basePath = import.meta.env.BASE_URL || '/';
+        map.current.addSource('street-centerline', { type: 'geojson', data: `${basePath}data/Street_Centerline.geojson` });
+        geojsonLoaded.current = true;
+      }
+      if (map.current.getSource('street-centerline') && !map.current.getLayer('street-centerline-lines')) {
+        const matchExpr: any[] = ['match', ['get', 'responsibl']];
+        for (const [val, color] of STREET_COLORS) matchExpr.push(val, color);
+        matchExpr.push(STREET_FALLBACK);
+        map.current.addLayer({
+          id: 'street-centerline-lines', type: 'line', source: 'street-centerline',
+          paint: { 'line-color': matchExpr as any, 'line-width': ['interpolate',['linear'],['zoom'],10,0.8,14,1.8,18,3.5], 'line-opacity': 0.75 },
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+        });
+      }
+      if (map.current.getLayer('street-centerline-lines'))
+        map.current.setLayoutProperty('street-centerline-lines','visibility','visible');
+    } else {
+      if (map.current?.getLayer('street-centerline-lines'))
+        map.current.setLayoutProperty('street-centerline-lines','visibility','none');
+    }
+  }, [ready, showStreetCenterline]);
+
+  /* ── POI layer ── */
+  useEffect(() => {
+    if (!map.current || !ready) return;
+    if (showPOI) {
+      if (!poiLoaded.current && !map.current.getSource('poi-data')) {
+        const basePath = import.meta.env.BASE_URL || '/';
+        map.current.addSource('poi-data', { type: 'geojson', data: `${basePath}data/POI_Filtered.geojson` });
+        poiLoaded.current = true;
+      }
+      if (map.current.getSource('poi-data') && !map.current.getLayer('poi-circles')) {
+        // Color match expression
+        const matchExpr: any[] = ['match', ['get', 'poi_category']];
+        for (const [cat, color] of POI_COLORS) matchExpr.push(cat, color);
+        matchExpr.push(POI_FALLBACK);
+
+        map.current.addLayer({
+          id: 'poi-circles', type: 'circle', source: 'poi-data',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4.5, 18, 8],
+            'circle-color': matchExpr as any,
+            'circle-opacity': 0.8,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': 'rgba(0,0,0,0.3)',
+          },
+        });
+
+        // Hover popup
+        map.current.on('mouseenter', 'poi-circles', (e) => {
+          if (!map.current) return;
+          map.current.getCanvas().style.cursor = 'pointer';
+          const feat = e.features?.[0];
+          if (!feat) return;
+          const props = feat.properties || {};
+          const coords = (feat.geometry as any).coordinates.slice() as [number, number];
+          const name = props.name || 'Unnamed';
+          const amenity = props.amenity || '';
+          const cat = props.poi_category || '';
+          const color = POI_COLORS.find(([c]) => c === cat)?.[1] || POI_FALLBACK;
+
+          popupRef.current?.remove();
+          popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12, className: 'poi-popup' })
+            .setLngLat(coords)
+            .setHTML(`
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;padding:2px 0;">
+                <div style="font-weight:700;font-size:13px;color:#f1f5f9;margin-bottom:3px;">${name}</div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;"></span>
+                  <span style="font-size:11px;color:#94a3af;">${cat}</span>
+                  <span style="font-size:10px;color:#64748b;">· ${amenity}</span>
+                </div>
+              </div>
+            `)
+            .addTo(map.current);
+        });
+        map.current.on('mouseleave', 'poi-circles', () => {
+          if (map.current) map.current.getCanvas().style.cursor = '';
+          popupRef.current?.remove();
+        });
+      }
+      if (map.current.getLayer('poi-circles'))
+        map.current.setLayoutProperty('poi-circles','visibility','visible');
+    } else {
+      if (map.current?.getLayer('poi-circles'))
+        map.current.setLayoutProperty('poi-circles','visibility','none');
+      popupRef.current?.remove();
+    }
+  }, [ready, showPOI]);
+
+  /* ── Resize observer ── */
   useEffect(() => {
     if (!map.current || !ready || !ctr.current) return;
     const ro = new ResizeObserver(() => requestAnimationFrame(() => map.current?.resize()));
@@ -188,6 +265,7 @@ export const MapComponent = ({
     return () => ro.disconnect();
   }, [ready]);
 
+  /* ── Anchor markers ── */
   useEffect(() => {
     if (!map.current || !ready) return;
     mrs.current.forEach(m => m.remove());
@@ -203,7 +281,6 @@ export const MapComponent = ({
   }, [anchors, visibleLayers, ready, onAnchorClick]);
 
   return (
-    <div ref={ctr} className="w-full h-full"
-      style={{ position:'absolute', top:0, left:0, right:0, bottom:0 }} />
+    <div ref={ctr} className="w-full h-full" style={{ position:'absolute',top:0,left:0,right:0,bottom:0 }} />
   );
 };

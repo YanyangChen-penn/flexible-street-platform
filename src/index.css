@@ -40,3 +40,17 @@ html, body {
 .mapboxgl-ctrl-group button span { filter: invert(1) brightness(0.7); }
 .mapboxgl-ctrl-group button:hover { background: #282938 !important; }
 .mapboxgl-ctrl-scale { background: rgba(30,31,43,0.8) !important; color: #9ca3af !important; border-color: rgba(255,255,255,0.1) !important; font-size: 10px !important; }
+
+/* Dark Mapbox popup (POI hover) */
+.poi-popup .mapboxgl-popup-content {
+  background: #1e1f2b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  color: #e2e4e9;
+}
+.poi-popup .mapboxgl-popup-tip {
+  border-top-color: #1e1f2b;
+  border-bottom-color: #1e1f2b;
+}
