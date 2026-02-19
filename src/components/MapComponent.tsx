@@ -152,6 +152,7 @@ export const MapComponent = ({
   }, [showPOI]);
 
   /* ── Fetch Streets from Supabase ── */
+  // 
   const fetchStreets = useCallback(async () => {
     if (!map.current || !showStreetCenterline || loadingStreets.current) return;
     loadingStreets.current = true;
