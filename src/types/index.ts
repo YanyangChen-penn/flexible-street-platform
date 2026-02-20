@@ -1,29 +1,36 @@
-// 锚点类型定义
-export type AnchorType = 
-  | 'education' 
-  | 'food-beverage' 
-  | 'cultural' 
-  | 'community' 
-  | 'recreation' 
-  | 'events' 
-  | 'health' 
-  | 'transit' 
-  | 'commercial' 
-  | 'religious' 
-  | 'entertainment';
+/* ── Scenario IDs ── */
+export type ScenarioId =
+  | 'school_dismissal'
+  | 'weekend_market'
+  | 'dining_activation'
+  | 'play_street'
+  | 'event_spillover'
+  | 'transit_zone';
 
-// 锚点接口
+/* ── Anchor (from Supabase anchors table) ── */
 export interface Anchor {
-  id: string;
+  id: number;
   name: string;
-  type: AnchorType;
+  scenarioId: ScenarioId;
+  amenity: string;
   latitude: number;
   longitude: number;
-  subtype?: string;
+  sourceTable?: string;
   metadata?: Record<string, any>;
 }
 
-// 街道路段
+/* ── Scenario layer config ── */
+export interface ScenarioConfig {
+  id: ScenarioId;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  glowRgb: string;
+  visible: boolean;
+}
+
+/* ── Street segment ── */
 export interface StreetSegment {
   id: string;
   name: string;
@@ -33,7 +40,7 @@ export interface StreetSegment {
   anchorCount?: number;
 }
 
-// 时间段
+/* ── Time bin ── */
 export interface TimeBin {
   id: string;
   label: string;
@@ -41,7 +48,7 @@ export interface TimeBin {
   endHour: number;
 }
 
-// FSI分数
+/* ── FSI score ── */
 export interface FSIScore {
   streetId: string;
   timeBinId: string;
@@ -54,11 +61,5 @@ export interface FSIScore {
   };
 }
 
-// 图层配置
-export interface LayerConfig {
-  id: string;
-  name: string;
-  visible: boolean;
-  color: string;
-  icon?: string;
-}
+/* ── Legacy compat ── */
+export type LayerConfig = ScenarioConfig;

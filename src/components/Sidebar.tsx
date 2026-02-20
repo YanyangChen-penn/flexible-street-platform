@@ -1,16 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { LayerConfig, TimeBin } from '../types';
-import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin } from 'lucide-react';
-import { STREET_COLORS, STREET_FALLBACK, POI_COLORS } from './MapComponent';
+import type { ScenarioConfig, TimeBin } from '../types';
+import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin, Flag } from 'lucide-react';
+import { STREET_COLORS, STREET_FALLBACK, POI_COLORS, PLAYSTREETS_COLOR } from './MapComponent';
 
 interface SidebarProps {
-  layers: LayerConfig[];
+  scenarios: ScenarioConfig[];
   timeBins: TimeBin[];
   selectedTimeBin: string;
-  onLayerToggle: (layerId: string) => void;
+  onScenarioToggle: (scenarioId: string) => void;
   onTimeBinChange: (timeBinId: string) => void;
-  onSelectAll: () => void;
-  onDeselectAll: () => void;
+  onSelectAll?: () => void;
+  onDeselectAll?: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   showTraffic?: boolean;
@@ -19,33 +19,37 @@ interface SidebarProps {
   onStreetCenterlineToggle?: (show: boolean) => void;
   showPOI?: boolean;
   onPOIToggle?: (show: boolean) => void;
+  showPlaystreets?: boolean;
+  onPlaystreetsToggle?: (show: boolean) => void;
   width: number;
   onWidthChange: (w: number) => void;
+  anchorCount?: number;
 }
 
 const MIN_W = 260;
 const MAX_W = 480;
 
 export const Sidebar = ({
-  layers, timeBins, selectedTimeBin, onLayerToggle, onTimeBinChange,
+  scenarios, timeBins, selectedTimeBin, onScenarioToggle, onTimeBinChange,
   onSelectAll, onDeselectAll,
   isCollapsed, showTraffic = false, onTrafficToggle,
   showStreetCenterline = false, onStreetCenterlineToggle,
   showPOI = false, onPOIToggle,
-  width, onWidthChange,
+  showPlaystreets = false, onPlaystreetsToggle,
+  width, onWidthChange, anchorCount = 0,
 }: SidebarProps) => {
   const accent = '#6366F1';
 
   const [timeOpen, setTimeOpen] = useState(false);
   const [overlaysOpen, setOverlaysOpen] = useState(false);
-  const [layersOpen, setLayersOpen] = useState(false);
-  const [streetLegendOpen, setStreetLegendOpen] = useState(false);
-  const [poiLegendOpen, setPoiLegendOpen] = useState(false);
+  const [scenariosOpen, setScenariosOpen] = useState(false);
+  const [streetLegendOpen, setStreetLegendOpen] = useState(true);
+  const [poiLegendOpen, setPoiLegendOpen] = useState(true);
 
-  const allSelected = layers.every(l => l.visible);
-  const noneSelected = layers.every(l => !l.visible);
+  const allSelected = scenarios.every(s => s.visible);
+  const noneSelected = scenarios.every(s => !s.visible);
+  const activeCount = scenarios.filter(s => s.visible).length;
 
-  /* drag resize */
   const dragging = useRef(false);
   const startX = useRef(0);
   const startW = useRef(width);
@@ -75,11 +79,12 @@ export const Sidebar = ({
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [onWidthChange]);
 
-  const SectionHeader = ({ icon, label, open, onToggle }: { icon: React.ReactNode; label: string; open: boolean; onToggle: () => void }) => (
+  const SectionHeader = ({ icon, label, open, onToggle, badge }: { icon: React.ReactNode; label: string; open: boolean; onToggle: () => void; badge?: string }) => (
     <button onClick={onToggle} className="w-full px-6 py-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
       <div className="flex items-center gap-2">
         {icon}
         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</h2>
+        {badge && <span className="px-2 py-0.5 text-[10px] font-bold rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#A5B4FC' }}>{badge}</span>}
       </div>
       <ChevronDown className="w-4 h-4 text-gray-500 transition-transform duration-200" style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
     </button>
@@ -124,10 +129,9 @@ export const Sidebar = ({
             <p className="text-sm text-gray-500">Philadelphia Pilot Project</p>
           </div>
 
-          {/* Scrollable */}
           <div className="flex-1 overflow-y-auto">
 
-            {/* ── Time Period ── */}
+            {/* ── 1. Time Period ── */}
             <div className="border-b border-white/[0.06]">
               <SectionHeader icon={<Clock className="w-4 h-4" style={{ color: '#A5B4FC' }} />} label="Time Period" open={timeOpen} onToggle={() => setTimeOpen(!timeOpen)} />
               <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: timeOpen ? '400px' : '0px', opacity: timeOpen ? 1 : 0 }}>
@@ -144,13 +148,11 @@ export const Sidebar = ({
               </div>
             </div>
 
-            {/* ── Map Overlays ── */}
+            {/* ── 2. Map Overlays ── */}
             <div className="border-b border-white/[0.06]">
               <SectionHeader icon={<Radio className="w-4 h-4" style={{ color: '#A5B4FC' }} />} label="Map Overlays" open={overlaysOpen} onToggle={() => setOverlaysOpen(!overlaysOpen)} />
-              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: overlaysOpen ? '900px' : '0px', opacity: overlaysOpen ? 1 : 0 }}>
+              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: overlaysOpen ? '1100px' : '0px', opacity: overlaysOpen ? 1 : 0 }}>
                 <div className="px-6 pb-5 space-y-1">
-
-                  {/* Traffic */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showTraffic} onChange={(e) => onTrafficToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -168,8 +170,6 @@ export const Sidebar = ({
                       ))}
                     </div>
                   )}
-
-                  {/* Street Centerline */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showStreetCenterline} onChange={(e) => onStreetCenterlineToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -182,8 +182,6 @@ export const Sidebar = ({
                     <SubLegend open={streetLegendOpen} onToggle={() => setStreetLegendOpen(!streetLegendOpen)}
                       count={STREET_COLORS.length} items={STREET_COLORS} fallbackLabel="Other" fallbackColor={STREET_FALLBACK} />
                   )}
-
-                  {/* POI */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showPOI} onChange={(e) => onPOIToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -196,55 +194,67 @@ export const Sidebar = ({
                     <SubLegend open={poiLegendOpen} onToggle={() => setPoiLegendOpen(!poiLegendOpen)}
                       count={POI_COLORS.length} items={POI_COLORS} />
                   )}
-
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
+                    <input type="checkbox" checked={showPlaystreets} onChange={(e) => onPlaystreetsToggle?.(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
+                    <div className="flex items-center gap-2 flex-1">
+                      <Flag className="w-3.5 h-3.5" style={{ color: PLAYSTREETS_COLOR }} />
+                      <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">Playstreets</span>
+                    </div>
+                  </label>
+                  {showPlaystreets && (
+                    <div className="ml-11 mb-1 animate-fadeIn">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="w-4 h-[3px] rounded-full" style={{ background: PLAYSTREETS_COLOR }} />
+                        <span>Summer play streets (matched to road segments)</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* ── Anchor Layers ── */}
+            {/* ── 3. Scenarios (LAST) ── */}
             <div>
-              <SectionHeader icon={<Layers className="w-4 h-4" style={{ color: '#A5B4FC' }} />} label="Anchor Layers" open={layersOpen} onToggle={() => setLayersOpen(!layersOpen)} />
-              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: layersOpen ? '900px' : '0px', opacity: layersOpen ? 1 : 0 }}>
+              <SectionHeader
+                icon={<Layers className="w-4 h-4" style={{ color: '#A5B4FC' }} />}
+                label="Scenarios"
+                open={scenariosOpen}
+                onToggle={() => setScenariosOpen(!scenariosOpen)}
+                badge={activeCount > 0 ? `${activeCount} active` : undefined}
+              />
+              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: scenariosOpen ? '900px' : '0px', opacity: scenariosOpen ? 1 : 0 }}>
                 <div className="px-6 pb-5">
-                  {/* Select all / Deselect all */}
                   <div className="flex items-center gap-2 mb-3">
-                    <button
-                      onClick={onSelectAll}
-                      disabled={allSelected}
+                    <button onClick={onSelectAll} disabled={allSelected}
                       className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all"
-                      style={{
-                        background: allSelected ? 'rgba(255,255,255,0.03)' : 'rgba(99,102,241,0.15)',
-                        color: allSelected ? '#4b5563' : '#A5B4FC',
-                        cursor: allSelected ? 'default' : 'pointer',
-                      }}
-                    >
+                      style={{ background: allSelected ? 'rgba(255,255,255,0.03)' : 'rgba(99,102,241,0.15)', color: allSelected ? '#4b5563' : '#A5B4FC', cursor: allSelected ? 'default' : 'pointer' }}>
                       Select All
                     </button>
-                    <button
-                      onClick={onDeselectAll}
-                      disabled={noneSelected}
+                    <button onClick={onDeselectAll} disabled={noneSelected}
                       className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all"
-                      style={{
-                        background: noneSelected ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)',
-                        color: noneSelected ? '#4b5563' : '#9ca3af',
-                        cursor: noneSelected ? 'default' : 'pointer',
-                      }}
-                    >
+                      style={{ background: noneSelected ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)', color: noneSelected ? '#4b5563' : '#9ca3af', cursor: noneSelected ? 'default' : 'pointer' }}>
                       Deselect All
                     </button>
-                    <span className="ml-auto text-xs text-gray-600">
-                      {layers.filter(l => l.visible).length}/{layers.length}
-                    </span>
+                    <span className="ml-auto text-xs text-gray-600">{activeCount}/{scenarios.length}</span>
                   </div>
-
                   <div className="space-y-2">
-                    {layers.map(layer => (
-                      <label key={layer.id} className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
-                        <input type="checkbox" checked={layer.visible} onChange={() => onLayerToggle(layer.id)}
-                          className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
-                        <div className="flex items-center gap-2 flex-1">
-                          <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: layer.color, boxShadow: `0 0 6px ${layer.color}40` }} />
-                          <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">{layer.icon} {layer.name}</span>
+                    {scenarios.map(scenario => (
+                      <label key={scenario.id}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 group ${scenario.visible ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'}`}
+                      >
+                        <input type="checkbox" checked={scenario.visible} onChange={() => onScenarioToggle(scenario.id)}
+                          className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: scenario.color }} />
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm"
+                            style={{ backgroundColor: scenario.color, boxShadow: scenario.visible ? `0 0 8px ${scenario.color}50` : `0 0 4px ${scenario.color}30` }} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">{scenario.icon}</span>
+                              <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors truncate">{scenario.name}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-600 truncate mt-0.5">{scenario.description}</p>
+                          </div>
                         </div>
                       </label>
                     ))}
@@ -259,18 +269,17 @@ export const Sidebar = ({
           <div className="px-6 py-5 border-t border-white/[0.06] bg-white/[0.02]">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">Active</p>
-                <p className="text-2xl font-extrabold text-gray-100">{layers.filter(l => l.visible).length}</p>
+                <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">Scenarios</p>
+                <p className="text-2xl font-extrabold text-gray-100">{activeCount}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">Total</p>
-                <p className="text-2xl font-extrabold text-gray-100">{layers.length * 2}</p>
+                <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">Anchors</p>
+                <p className="text-2xl font-extrabold text-gray-100">{anchorCount.toLocaleString()}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Drag handle */}
         {!isCollapsed && (
           <div onMouseDown={onMouseDown} className="flex-shrink-0 w-2 cursor-col-resize group flex items-center justify-center" title="Drag to resize">
             <div className="w-[3px] h-12 rounded-full bg-white/[0.08] group-hover:bg-indigo-500/60 group-active:bg-indigo-500 transition-colors" />

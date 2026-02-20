@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "layers": {
+    "Street_Centerline": {
+      "source": "mapbox://tileset-source/yangf0304/street-centerline-src",
+      "minzoom": 10,
+      "maxzoom": 16,
+      "features": {
+        "simplification": {
+          "distance": 0,
+          "outward_only": true
+        }
+      }
+    }
+  }
+}
