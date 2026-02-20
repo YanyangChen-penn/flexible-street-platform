@@ -42,8 +42,8 @@ export const MapPage = () => {
   const [showPOI, setShowPOI] = useState(false);
   const [showPlaystreets, setShowPlaystreets] = useState(false);
 
-  /* Anchor count (updated from map data) */
-  const [anchorCount, setAnchorCount] = useState(0);
+  /* Anchor count */
+  const [anchorCount] = useState(0);
 
   /* Compute active scenario IDs */
   const activeScenarios = useMemo(
