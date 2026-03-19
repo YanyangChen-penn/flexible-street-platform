@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ScenarioConfig, TimeBin } from '../types';
-import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin, Flag } from 'lucide-react';
-import { STREET_COLORS, STREET_FALLBACK, POI_COLORS, PLAYSTREETS_COLOR } from './MapComponent';
+import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin, Flag, BarChart3 } from 'lucide-react';
+import { STREET_COLORS, STREET_FALLBACK, POI_COLORS, PLAYSTREETS_COLOR, SCORE_COLOR_STOPS } from './MapComponent';
 
 interface SidebarProps {
   scenarios: ScenarioConfig[];
@@ -21,6 +21,8 @@ interface SidebarProps {
   onPOIToggle?: (show: boolean) => void;
   showPlaystreets?: boolean;
   onPlaystreetsToggle?: (show: boolean) => void;
+  showStreetScore?: boolean;
+  onStreetScoreToggle?: (show: boolean) => void;
   width: number;
   onWidthChange: (w: number) => void;
   anchorCount?: number;
@@ -36,6 +38,7 @@ export const Sidebar = ({
   showStreetCenterline = false, onStreetCenterlineToggle,
   showPOI = false, onPOIToggle,
   showPlaystreets = false, onPlaystreetsToggle,
+  showStreetScore = false, onStreetScoreToggle,
   width, onWidthChange, anchorCount = 0,
 }: SidebarProps) => {
   const accent = '#6366F1';
@@ -138,21 +141,58 @@ export const Sidebar = ({
                 <div className="px-6 pb-5 grid grid-cols-1 gap-2">
                   {timeBins.map(bin => (
                     <button key={bin.id} onClick={() => onTimeBinChange(bin.id)}
-                      className={`px-4 py-3 text-left rounded-xl transition-all duration-150 ${selectedTimeBin === bin.id ? 'text-white shadow-md' : 'bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 border border-white/[0.06]'}`}
-                      style={selectedTimeBin === bin.id ? { background: accent, boxShadow: '0 4px 12px rgba(99,102,241,0.25)' } : {}}
+                      className={`px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${selectedTimeBin === bin.id ? 'bg-white/[0.08] text-gray-100 border border-white/[0.1]' : 'text-gray-400 hover:bg-white/[0.03] border border-transparent'}`}
                     >
-                      <span className="text-sm font-semibold">{bin.label}</span>
+                      <span>{bin.label}</span>
+                      <span className="text-xs text-gray-600 ml-2">{bin.startHour}:00–{bin.endHour}:00</span>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* ── 2. Map Overlays ── */}
+            {/* ── 2. Data Overlays ── */}
             <div className="border-b border-white/[0.06]">
-              <SectionHeader icon={<Radio className="w-4 h-4" style={{ color: '#A5B4FC' }} />} label="Map Overlays" open={overlaysOpen} onToggle={() => setOverlaysOpen(!overlaysOpen)} />
-              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: overlaysOpen ? '1100px' : '0px', opacity: overlaysOpen ? 1 : 0 }}>
+              <SectionHeader icon={<Radio className="w-4 h-4" style={{ color: '#A5B4FC' }} />} label="Data Overlays" open={overlaysOpen} onToggle={() => setOverlaysOpen(!overlaysOpen)} />
+              <div className="overflow-hidden transition-all duration-200" style={{ maxHeight: overlaysOpen ? '1400px' : '0px', opacity: overlaysOpen ? 1 : 0 }}>
                 <div className="px-6 pb-5 space-y-1">
+
+                  {/* Street Score — new */}
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
+                    <input type="checkbox" checked={showStreetScore} onChange={(e) => onStreetScoreToggle?.(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: '#10B981' }} />
+                    <div className="flex items-center gap-2 flex-1">
+                      <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">Flexibility Score</span>
+                    </div>
+                  </label>
+                  {showStreetScore && (
+                    <div className="ml-7 mb-2 animate-fadeIn">
+                      {/* Gradient bar */}
+                      <div className="ml-4 mt-1 space-y-2 pb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2.5 rounded-full overflow-hidden"
+                            style={{ background: 'linear-gradient(90deg, #EF4444 0%, #F97316 25%, #EAB308 45%, #22C55E 65%, #10B981 80%, #059669 100%)' }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-gray-600 px-0.5">
+                          <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+                        </div>
+                        <div className="space-y-1 mt-1">
+                          {SCORE_COLOR_STOPS.map(({ color, label }) => (
+                            <div key={label} className="flex items-center gap-2 text-xs text-gray-500">
+                              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: color }} />
+                              <span>{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">
+                          Click a street to see Commercial, Social &amp; Ecological breakdown. Streets ≥80 glow and are recommended for activation.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Traffic */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showTraffic} onChange={(e) => onTrafficToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -170,6 +210,8 @@ export const Sidebar = ({
                       ))}
                     </div>
                   )}
+
+                  {/* Street Centerline */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showStreetCenterline} onChange={(e) => onStreetCenterlineToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -182,6 +224,8 @@ export const Sidebar = ({
                     <SubLegend open={streetLegendOpen} onToggle={() => setStreetLegendOpen(!streetLegendOpen)}
                       count={STREET_COLORS.length} items={STREET_COLORS} fallbackLabel="Other" fallbackColor={STREET_FALLBACK} />
                   )}
+
+                  {/* POI */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showPOI} onChange={(e) => onPOIToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />
@@ -194,6 +238,8 @@ export const Sidebar = ({
                     <SubLegend open={poiLegendOpen} onToggle={() => setPoiLegendOpen(!poiLegendOpen)}
                       count={POI_COLORS.length} items={POI_COLORS} />
                   )}
+
+                  {/* Playstreets */}
                   <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
                     <input type="checkbox" checked={showPlaystreets} onChange={(e) => onPlaystreetsToggle?.(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: accent }} />

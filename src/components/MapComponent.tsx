@@ -4,6 +4,9 @@ import mapboxgl from 'mapbox-gl';
 import type { Anchor, ScenarioId } from '../types';
 import { PHILADELPHIA_CENTER, scenarioConfigs } from '../data/mockData';
 import { supabase } from '../lib/supabase';
+import { generateStreetScores, getScoreColor } from './StreetScorePanel';
+import type { StreetScore } from './StreetScorePanel';
+import type { StreetAIData } from '../lib/streetScores';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -17,6 +20,9 @@ interface MapComponentProps {
   showStreetCenterline?: boolean;
   showPOI?: boolean;
   showPlaystreets?: boolean;
+  showStreetScore?: boolean;
+  onStreetScoreClick?: (score: StreetScore) => void;
+  streetAICache?: Map<number, StreetAIData>;
 }
 
 /* ── Palettes ── */
@@ -36,6 +42,15 @@ export const POI_COLORS: [string, string][] = [
 ];
 const POI_FALLBACK = '#64748B';
 export const PLAYSTREETS_COLOR = '#22D3EE';
+
+/* ── Score color stops (exported for legend) ── */
+export const SCORE_COLOR_STOPS: { value: number; color: string; label: string }[] = [
+  { value: 0, color: '#EF4444', label: '0–34  Low' },
+  { value: 35, color: '#F97316', label: '35–49  Fair' },
+  { value: 50, color: '#EAB308', label: '50–64  Moderate' },
+  { value: 65, color: '#22C55E', label: '65–79  Good' },
+  { value: 80, color: '#10B981', label: '80–100  Excellent ★' },
+];
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -57,12 +72,40 @@ function injectCSS() {
 </style>`);
 }
 
+/* ── Pseudo-random score from feature ID (Mapbox expression) ──
+   Uses a simple LCG-like formula to spread IDs across 0–100.
+   We create THREE separate expressions for the sub-scores,
+   then average them for the total displayed on the map.       */
+function buildScoreExpr(offset: number): any {
+  return [
+    'min', 100,
+    ['max', 0,
+      ['%',
+        ['abs',
+          ['+',
+            ['*', ['%', ['+', ['coalesce', ['id'], 1], offset], 9973], 7919],
+            offset * 13
+          ]
+        ],
+        101
+      ]
+    ]
+  ];
+}
+
+const SCORE_COMMERCIAL = buildScoreExpr(1);
+const SCORE_SOCIAL     = buildScoreExpr(3);
+const SCORE_ECOLOGICAL = buildScoreExpr(5);
+const SCORE_TOTAL: any = ['round', ['/', ['+', SCORE_COMMERCIAL, SCORE_SOCIAL, SCORE_ECOLOGICAL], 3]];
+
 /* ═══════════════════════════════════════
    MapComponent
    ═══════════════════════════════════════ */
 export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
   activeScenarios, selectedTimeBin: _t, onAnchorClick,
   showTraffic = false, showStreetCenterline = false, showPOI = false, showPlaystreets = false,
+  showStreetScore = false, onStreetScoreClick,
+  streetAICache,            // ← 新增
 }, ref) => {
   const ctr = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -71,6 +114,8 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
   const loadingAnchors = useRef(false);
   const loadingPOI = useRef(false);
   const loadingPlaystreets = useRef(false);
+  const aiCacheRef = useRef<Map<number, StreetAIData>>(new Map());
+  useEffect(() => { aiCacheRef.current = streetAICache ?? new Map(); }, [streetAICache]);
 
   useImperativeHandle(ref, () => ({
     fitToPhiladelphia: () => { map.current?.flyTo({ center: [PHILADELPHIA_CENTER.longitude, PHILADELPHIA_CENTER.latitude], zoom: PHILADELPHIA_CENTER.zoom, duration: 1000 }); },
@@ -150,7 +195,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
 
   /* ══════════════════════════════════════
      Setup sources & layers
-     ORDER: street → playstreets → poi → ANCHORS (last = on top)
+     ORDER: street → score → playstreets → poi → ANCHORS (last = on top)
      ══════════════════════════════════════ */
   useEffect(() => {
     if (!map.current || !ready) return;
@@ -166,6 +211,122 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': sm as any, 'line-width': ['interpolate',['linear'],['zoom'],12,0.8,14,1.8,18,3.5], 'line-opacity': 0.75 },
+      });
+    }
+
+    /* ── 1b. Street Score layers ── */
+    if (!map.current.getLayer('street-score-glow')) {
+      // Glow for high-scoring streets (>= 80)
+      map.current.addLayer({
+        id: 'street-score-glow', type: 'line', source: 'street-centerline',
+        'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+        filter: ['>=', SCORE_TOTAL, 80],
+        paint: {
+          'line-color': '#10B981',
+          'line-width': ['interpolate',['linear'],['zoom'],12,6,14,12,18,22],
+          'line-opacity': 0.12,
+          'line-blur': 4,
+        },
+      });
+
+      // Main score lines — color by total score
+      map.current.addLayer({
+        id: 'street-score-lines', type: 'line', source: 'street-centerline',
+        'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'interpolate', ['linear'], SCORE_TOTAL,
+            0,  '#EF4444',
+            35, '#F97316',
+            50, '#EAB308',
+            65, '#22C55E',
+            80, '#10B981',
+            100,'#059669',
+          ] as any,
+          'line-width': ['interpolate',['linear'],['zoom'],12,1.5,14,3,18,5],
+          'line-opacity': 0.85,
+        },
+      });
+
+      // Highlight layer for clicked street
+      map.current.addLayer({
+        id: 'street-score-highlight', type: 'line', source: 'street-centerline',
+        'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
+        layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': ['interpolate',['linear'],['zoom'],12,4,14,7,18,10],
+          'line-opacity': 0.25,
+          'line-blur': 2,
+        },
+        filter: ['==', ['id'], -1], // nothing selected
+      });
+    }
+
+    const TEST_BBOX = {
+      minLng: -75.185, minLat: 39.910,
+      maxLng: -75.140, maxLat: 39.950,
+    };
+
+    if (!map.current.getSource('test-bbox')) {
+      map.current.addSource('test-bbox', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [TEST_BBOX.minLng, TEST_BBOX.minLat],
+              [TEST_BBOX.maxLng, TEST_BBOX.minLat],
+              [TEST_BBOX.maxLng, TEST_BBOX.maxLat],
+              [TEST_BBOX.minLng, TEST_BBOX.maxLat],
+              [TEST_BBOX.minLng, TEST_BBOX.minLat],
+            ]],
+          },
+        } as any,
+      });
+
+      // Fill
+      map.current.addLayer({
+        id: 'test-bbox-fill',
+        type: 'fill',
+        source: 'test-bbox',
+        paint: {
+          'fill-color': '#6366F1',
+          'fill-opacity': 0.06,
+        },
+      });
+
+      // Border
+      map.current.addLayer({
+        id: 'test-bbox-border',
+        type: 'line',
+        source: 'test-bbox',
+        paint: {
+          'line-color': '#818CF8',
+          'line-width': 2,
+          'line-dasharray': [4, 3],
+        },
+      });
+
+      // Label
+      map.current.addLayer({
+        id: 'test-bbox-label',
+        type: 'symbol',
+        source: 'test-bbox',
+        layout: {
+          'text-field': '🧪 Test Area',
+          'text-size': 13,
+          'text-anchor': 'top-left',
+          'text-offset': [0.5, 0.5],
+        },
+        paint: {
+          'text-color': '#a5b4fc',
+          'text-halo-color': '#0f1017',
+          'text-halo-width': 2,
+        },
       });
     }
 
@@ -295,7 +456,76 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         });
       });
     }
-  }, [ready, onAnchorClick]);
+
+    /* ── Street Score interactions ── */
+    // Hover on score layer
+    map.current.on('mouseenter', 'street-score-lines', (e) => {
+      if (!map.current || !showStreetScore) return;
+      map.current.getCanvas().style.cursor = 'pointer';
+      const feat = e.features?.[0]; if (!feat) return;
+      const props = feat.properties || {};
+      const fid = typeof feat.id === 'number' ? feat.id : 0;
+
+      // FSI 分数保持伪随机（不变）
+      const scores = generateStreetScores(fid, props.street_name);
+      const color  = getScoreColor(scores.total);
+
+      // 叠加 AI 感官数据（如果有）
+      const ai       = aiCacheRef.current.get(fid);
+      const dispName = ai?.streetName || props.street_name || `Street #${fid}`;
+      const kwHtml   = ai?.keywords?.length
+        ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">${
+            ai.keywords.map(k =>
+              `<span style="font-size:10px;padding:1px 7px;border-radius:99px;` +
+              `background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.25);">${k}</span>`
+            ).join('')
+          }</div>`
+        : '';
+
+      popupRef.current?.remove();
+      popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 12, className: 'poi-popup' })
+        .setLngLat(e.lngLat)
+        .setHTML(`<div style="font-family:'Plus Jakarta Sans',sans-serif;padding:2px 0;">
+          <div style="font-weight:700;font-size:13px;color:#f1f5f9;margin-bottom:3px;">${dispName}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;font-weight:800;color:${color};">${scores.total}</span>
+            <span style="font-size:11px;color:#94a3af;">Flexibility Score</span>
+            ${scores.total >= 80 ? '<span style="font-size:10px;color:#6EE7B7;font-weight:700;">★ Recommended</span>' : ''}
+          </div>${kwHtml}</div>`)
+        .addTo(map.current);
+    });
+    map.current.on('mouseleave', 'street-score-lines', () => {
+      if (!map.current || !showStreetScore) return;
+      map.current.getCanvas().style.cursor = '';
+      popupRef.current?.remove();
+    });
+
+    // Click on score layer → detail panel
+    map.current.on('click', 'street-score-lines', (e) => {
+      if (!showStreetScore || !onStreetScoreClick) return;
+      const feat = e.features?.[0]; if (!feat) return;
+      const props = feat.properties || {};
+      const fid = typeof feat.id === 'number' ? feat.id : 0;
+
+      // FSI 分数保持伪随机（不变）
+      const scores = generateStreetScores(fid, props.street_name);
+      scores.responsibl = props.responsibl || '';
+
+      // 叠加 AI 感官数据（如果有）
+      const ai = aiCacheRef.current.get(fid);
+      if (ai) {
+        scores.streetName = ai.streetName || scores.streetName; // 修复 Unnamed Street
+        scores.aiScore    = ai.aiScore;
+        scores.keywords   = ai.keywords;
+      }
+
+      if (map.current?.getLayer('street-score-highlight')) {
+        map.current.setFilter('street-score-highlight', ['==', ['id'], fid]);
+      }
+      onStreetScoreClick(scores);
+    });
+
+  }, [ready, onAnchorClick, showStreetScore, onStreetScoreClick]);
 
   /* ── Map move → refetch ── */
   useEffect(() => {
@@ -321,6 +551,20 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
     if (map.current.getLayer('street-centerline-lines')) map.current.setLayoutProperty('street-centerline-lines', 'visibility', showStreetCenterline ? 'visible' : 'none');
   }, [ready, showStreetCenterline]);
 
+  /* ── Toggle Street Score ── */
+  useEffect(() => {
+    if (!map.current || !ready) return;
+    const vis = showStreetScore ? 'visible' : 'none';
+    for (const lid of ['street-score-lines', 'street-score-glow', 'street-score-highlight']) {
+      if (map.current.getLayer(lid)) map.current.setLayoutProperty(lid, 'visibility', vis);
+    }
+    if (!showStreetScore) {
+      // Clear highlight & popup
+      if (map.current.getLayer('street-score-highlight')) map.current.setFilter('street-score-highlight', ['==', ['id'], -1]);
+      popupRef.current?.remove();
+    }
+  }, [ready, showStreetScore]);
+
   /* ── Toggle Playstreets ── */
   useEffect(() => {
     if (!map.current || !ready) return;
@@ -344,7 +588,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
             'line-color': ['case',['==',['get','congestion'],'low'],'#34D399',['==',['get','congestion'],'moderate'],'#FBBF24',['==',['get','congestion'],'heavy'],'#FB923C',['==',['get','congestion'],'severe'],'#EF4444','#34D399'],
             'line-opacity': 0.75,
           },
-        }, 'anchor-glow'); // ← insert BELOW anchors
+        }, 'anchor-glow');
       } else map.current.setLayoutProperty('traffic-flow', 'visibility', 'visible');
     } else { if (map.current?.getLayer('traffic-flow')) map.current.setLayoutProperty('traffic-flow', 'visibility', 'none'); }
   }, [ready, showTraffic]);
