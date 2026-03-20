@@ -1,4 +1,5 @@
-import { X, TrendingUp, ShoppingBag, Users, Leaf, Star, Sparkles } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { X, TrendingUp, ShoppingBag, Users, Leaf, Star, Sparkles, GripHorizontal } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,47 @@ function getAIScoreLabel(s: number): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
+  const panelRef  = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ mouseX: number; mouseY: number; panelLeft: number; panelTop: number } | null>(null);
+  const [dragPos, setDragPos]     = useState<{ left: number; top: number } | null>(null);
+  const [dragging, setDragging]   = useState(false);
+
+  // Reset position each time a new street is selected
+  useEffect(() => { setDragPos(null); }, [score?.featureId]);
+
+  const onDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Allow close button to work without starting a drag
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+
+    const rect       = panelRef.current!.getBoundingClientRect();
+    const parentRect = panelRef.current!.parentElement!.getBoundingClientRect();
+    const initLeft   = rect.left - parentRect.left;
+    const initTop    = rect.top  - parentRect.top;
+    dragState.current = {
+      mouseX: e.clientX, mouseY: e.clientY,
+      panelLeft: initLeft, panelTop: initTop,
+    };
+    setDragPos({ left: initLeft, top: initTop });
+    setDragging(true);
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragState.current) return;
+      setDragPos({
+        left: dragState.current.panelLeft + (ev.clientX - dragState.current.mouseX),
+        top:  dragState.current.panelTop  + (ev.clientY - dragState.current.mouseY),
+      });
+    };
+    const onMouseUp = () => {
+      dragState.current = null;
+      setDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   if (!score) return null;
 
   const totalColor  = getScoreColor(score.total);
@@ -101,15 +143,31 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
   const hasKeywords = hasAI && Array.isArray(score.keywords) && score.keywords.length > 0;
   const aiColor     = hasAI ? getScoreColor(score.aiScore!) : '#6B7280';
 
+  const posStyle: React.CSSProperties = dragPos
+    ? { position: 'absolute', left: dragPos.left, top: dragPos.top }
+    : { position: 'absolute', bottom: 24, left: 16 };
+
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-[560px] max-w-[calc(100vw-48px)] animate-fadeIn">
+    <div
+      ref={panelRef}
+      className="z-50 w-[520px] max-w-[calc(100vw-48px)] animate-fadeIn"
+      style={posStyle}
+    >
       <div className="bg-[#16171e]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/[0.08] overflow-hidden">
 
-        {/* ── Header ── */}
-        <div className="px-6 pt-5 pb-4 border-b border-white/[0.06]">
+        {/* ── Header (drag handle) ── */}
+        <div
+          className="px-6 pt-4 pb-4 border-b border-white/[0.06] select-none"
+          style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+          onMouseDown={onDragMouseDown}
+        >
+          {/* Grip indicator */}
+          <div className="flex justify-center mb-2 opacity-30">
+            <GripHorizontal className="w-4 h-4 text-gray-400" />
+          </div>
+
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h3 className="text-lg font-extrabold text-gray-100 truncate tracking-wide">
                   {displayName}
@@ -123,7 +181,6 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
                   </span>
                 )}
               </div>
-
               {score.responsibl && (
                 <p className="text-xs text-gray-500">
                   Managed by <span className="text-gray-400 font-semibold">{score.responsibl}</span>
@@ -143,20 +200,18 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
         {/* ── Body ── */}
         <div className="px-6 py-5 space-y-5">
 
-          {/* ── AI Sensory Score (NEW) ── */}
-          <div
-            className="rounded-xl p-4 border"
-            style={{ background: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.15)' }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4" style={{ color: '#818CF8' }} />
-              <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">AI Street Vibe</span>
-              <span className="text-[10px] text-gray-600 ml-auto">Claude Vision analysis</span>
-            </div>
-
-            {hasAI ? (
+          {/* ── AI Sensory Score (only shown when data exists) ── */}
+          {hasAI && (
+            <div
+              className="rounded-xl p-4 border"
+              style={{ background: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.15)' }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-4 h-4" style={{ color: '#818CF8' }} />
+                <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">AI Street Vibe</span>
+                <span className="text-[10px] text-gray-600 ml-auto">Claude Vision analysis</span>
+              </div>
               <div className="flex items-center gap-4">
-                {/* Score number */}
                 <div className="flex flex-col items-center flex-shrink-0">
                   <span className="text-3xl font-extrabold" style={{ color: aiColor }}>
                     {score.aiScore}
@@ -165,7 +220,6 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
                     {getAIScoreLabel(score.aiScore!)}
                   </span>
                 </div>
-                {/* Score bar */}
                 <div className="flex-1">
                   <div className="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden mb-3">
                     <div
@@ -176,7 +230,6 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
                       }}
                     />
                   </div>
-                  {/* Keywords */}
                   {hasKeywords && (
                     <div className="flex gap-2 flex-wrap">
                       {score.keywords!.map(kw => (
@@ -196,12 +249,10 @@ export const StreetScorePanel = ({ score, onClose }: StreetScorePanelProps) => {
                   )}
                 </div>
               </div>
-            ) : (
-              <p className="text-xs text-gray-600 italic">Pending analysis — run analyze-streets.mjs to generate</p>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* ── Existing FSI Score (UNCHANGED) ── */}
+          {/* ── FSI Score ── */}
           <div className="flex gap-6">
 
             {/* Total ring */}

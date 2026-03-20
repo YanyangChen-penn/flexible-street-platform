@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ScenarioConfig, TimeBin } from '../types';
-import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin, Flag, BarChart3 } from 'lucide-react';
+import { Layers, Clock, Radio, ChevronDown, GitBranch, MapPin, Flag, BarChart3, Square } from 'lucide-react';
 import { STREET_COLORS, STREET_FALLBACK, POI_COLORS, PLAYSTREETS_COLOR, SCORE_COLOR_STOPS } from './MapComponent';
 
 interface SidebarProps {
@@ -23,6 +23,8 @@ interface SidebarProps {
   onPlaystreetsToggle?: (show: boolean) => void;
   showStreetScore?: boolean;
   onStreetScoreToggle?: (show: boolean) => void;
+  showTestBBox?: boolean;
+  onTestBBoxToggle?: (show: boolean) => void;
   width: number;
   onWidthChange: (w: number) => void;
   anchorCount?: number;
@@ -39,6 +41,7 @@ export const Sidebar = ({
   showPOI = false, onPOIToggle,
   showPlaystreets = false, onPlaystreetsToggle,
   showStreetScore = false, onStreetScoreToggle,
+  showTestBBox = false, onTestBBoxToggle,
   width, onWidthChange, anchorCount = 0,
 }: SidebarProps) => {
   const accent = '#6366F1';
@@ -253,6 +256,24 @@ export const Sidebar = ({
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <span className="w-4 h-[3px] rounded-full" style={{ background: PLAYSTREETS_COLOR }} />
                         <span>Summer play streets (matched to road segments)</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Test BBox */}
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.05] cursor-pointer transition-all duration-150 group">
+                    <input type="checkbox" checked={showTestBBox} onChange={(e) => onTestBBoxToggle?.(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 focus:ring-offset-0" style={{ accentColor: '#818CF8' }} />
+                    <div className="flex items-center gap-2 flex-1">
+                      <Square className="w-3.5 h-3.5" style={{ color: '#818CF8' }} />
+                      <span className="text-sm font-medium text-gray-300 group-hover:text-gray-100 transition-colors">Test Area</span>
+                    </div>
+                  </label>
+                  {showTestBBox && (
+                    <div className="ml-11 mb-1 animate-fadeIn">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="w-4 h-3 rounded-sm border border-dashed" style={{ borderColor: '#818CF8', background: 'rgba(99,102,241,0.1)' }} />
+                        <span>Analysis bounding box</span>
                       </div>
                     </div>
                   )}

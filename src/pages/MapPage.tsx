@@ -4,6 +4,7 @@ import { Home, Maximize } from 'lucide-react';
 import { MapComponent } from '../components/MapComponent';
 import type { MapHandle } from '../components/MapComponent';
 import { Sidebar } from '../components/Sidebar';
+import { MapLegend } from '../components/MapLegend';
 import { AnchorDetailPanel } from '../components/AnchorDetailPanel';
 import { StreetScorePanel } from '../components/StreetScorePanel';
 import type { StreetScore } from '../components/StreetScorePanel';
@@ -37,6 +38,7 @@ export const MapPage = () => {
   const [showPOI, setShowPOI]                       = useState(false);
   const [showPlaystreets, setShowPlaystreets]       = useState(false);
   const [showStreetScore, setShowStreetScore]       = useState(false);
+  const [showTestBBox, setShowTestBBox]             = useState(false);
   const [anchorCount]                               = useState(0);
 
   // ── AI sensory cache ─────────────────────────────────────────────────────────
@@ -51,6 +53,7 @@ export const MapPage = () => {
     () => new Set(scenarios.filter(s => s.visible).map(s => s.id)) as Set<ScenarioId>,
     [scenarios]
   );
+  const activeScenariosConfig = useMemo(() => scenarios.filter(s => s.visible), [scenarios]);
 
   const handleScenarioToggle = useCallback((id: string) => {
     setScenarios(prev => prev.map(s => s.id === id ? { ...s, visible: !s.visible } : s));
@@ -99,6 +102,8 @@ export const MapPage = () => {
         onPlaystreetsToggle={setShowPlaystreets}
         showStreetScore={showStreetScore}
         onStreetScoreToggle={handleStreetScoreToggle}
+        showTestBBox={showTestBBox}
+        onTestBBoxToggle={setShowTestBBox}
         width={sidebarWidth}
         onWidthChange={setSidebarWidth}
         anchorCount={anchorCount}
@@ -144,12 +149,23 @@ export const MapPage = () => {
           showPlaystreets={showPlaystreets}
           showStreetScore={showStreetScore}
           onStreetScoreClick={handleStreetScoreClick}
+          showTestBBox={showTestBBox}
           streetAICache={aiCache}
         />
+        <MapLegend
+          showStreetScore={showStreetScore}
+          showTraffic={showTraffic}
+          showStreetCenterline={showStreetCenterline}
+          showPOI={showPOI}
+          showPlaystreets={showPlaystreets}
+          showTestBBox={showTestBBox}
+          activeScenarios={activeScenariosConfig}
+          anchorPanelOpen={selectedAnchor !== null}
+        />
+        <StreetScorePanel score={selectedStreetScore} onClose={() => setSelectedStreetScore(null)} />
       </div>
 
-      <AnchorDetailPanel anchor={selectedAnchor}      onClose={() => setSelectedAnchor(null)} />
-      <StreetScorePanel  score={selectedStreetScore}  onClose={() => setSelectedStreetScore(null)} />
+      <AnchorDetailPanel anchor={selectedAnchor} onClose={() => setSelectedAnchor(null)} />
 
       {/* Top bar */}
       <div

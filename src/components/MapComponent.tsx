@@ -22,6 +22,7 @@ interface MapComponentProps {
   showPlaystreets?: boolean;
   showStreetScore?: boolean;
   onStreetScoreClick?: (score: StreetScore) => void;
+  showTestBBox?: boolean;
   streetAICache?: Map<number, StreetAIData>;
 }
 
@@ -72,27 +73,16 @@ function injectCSS() {
 </style>`);
 }
 
-/* ── Pseudo-random score from feature ID (Mapbox expression) ──
-   Uses a simple LCG-like formula to spread IDs across 0–100.
-   We create THREE separate expressions for the sub-scores,
-   then average them for the total displayed on the map.       */
+
+/* ── Pseudo-random score from feature ID (Mapbox expression) ── */
 function buildScoreExpr(offset: number): any {
   return [
     'min', 100,
     ['max', 0,
-      ['%',
-        ['abs',
-          ['+',
-            ['*', ['%', ['+', ['coalesce', ['id'], 1], offset], 9973], 7919],
-            offset * 13
-          ]
-        ],
-        101
-      ]
+      ['%', ['abs', ['+', ['*', ['%', ['+', ['coalesce', ['id'], 1], offset], 9973], 7919], offset * 13]], 101]
     ]
   ];
 }
-
 const SCORE_COMMERCIAL = buildScoreExpr(1);
 const SCORE_SOCIAL     = buildScoreExpr(3);
 const SCORE_ECOLOGICAL = buildScoreExpr(5);
@@ -105,6 +95,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
   activeScenarios, selectedTimeBin: _t, onAnchorClick,
   showTraffic = false, showStreetCenterline = false, showPOI = false, showPlaystreets = false,
   showStreetScore = false, onStreetScoreClick,
+  showTestBBox = false,
   streetAICache,            // ← 新增
 }, ref) => {
   const ctr = useRef<HTMLDivElement>(null);
@@ -116,6 +107,19 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
   const loadingPlaystreets = useRef(false);
   const aiCacheRef = useRef<Map<number, StreetAIData>>(new Map());
   useEffect(() => { aiCacheRef.current = streetAICache ?? new Map(); }, [streetAICache]);
+
+  /* ── Inject AI scores into Mapbox feature state ── */
+  useEffect(() => {
+    if (!map.current || !ready || !streetAICache || streetAICache.size === 0) return;
+    streetAICache.forEach((data, featureId) => {
+      if (typeof data.aiScore === 'number') {
+        map.current!.setFeatureState(
+          { source: 'street-centerline', sourceLayer: 'Street_Centerline-46lvna', id: featureId },
+          { aiScore: data.aiScore },
+        );
+      }
+    });
+  }, [ready, streetAICache]);
 
   useImperativeHandle(ref, () => ({
     fitToPhiladelphia: () => { map.current?.flyTo({ center: [PHILADELPHIA_CENTER.longitude, PHILADELPHIA_CENTER.latitude], zoom: PHILADELPHIA_CENTER.zoom, duration: 1000 }); },
@@ -209,6 +213,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
       map.current.addLayer({
         id: 'street-centerline-lines', type: 'line', source: 'street-centerline',
         'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
+        filter: ['any', ['>=', ['zoom'], 13.5], ['match', ['get', 'responsibl'], ['STATE'], true, false]],
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': sm as any, 'line-width': ['interpolate',['linear'],['zoom'],12,0.8,14,1.8,18,3.5], 'line-opacity': 0.75 },
       });
@@ -221,7 +226,10 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         id: 'street-score-glow', type: 'line', source: 'street-centerline',
         'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
-        filter: ['>=', SCORE_TOTAL, 80],
+        filter: ['all',
+          ['>=', SCORE_TOTAL, 80],
+          ['any', ['>=', ['zoom'], 13.5], ['match', ['get', 'responsibl'], ['STATE'], true, false]],
+        ],
         paint: {
           'line-color': '#10B981',
           'line-width': ['interpolate',['linear'],['zoom'],12,6,14,12,18,22],
@@ -234,6 +242,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
       map.current.addLayer({
         id: 'street-score-lines', type: 'line', source: 'street-centerline',
         'source-layer': 'Street_Centerline-46lvna', minzoom: 12,
+        filter: ['any', ['>=', ['zoom'], 13.5], ['match', ['get', 'responsibl'], ['STATE'], true, false]],
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': [
@@ -293,6 +302,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         id: 'test-bbox-fill',
         type: 'fill',
         source: 'test-bbox',
+        layout: { visibility: 'none' },
         paint: {
           'fill-color': '#6366F1',
           'fill-opacity': 0.06,
@@ -304,6 +314,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         id: 'test-bbox-border',
         type: 'line',
         source: 'test-bbox',
+        layout: { visibility: 'none' },
         paint: {
           'line-color': '#818CF8',
           'line-width': 2,
@@ -317,6 +328,7 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
         type: 'symbol',
         source: 'test-bbox',
         layout: {
+          visibility: 'none',
           'text-field': '🧪 Test Area',
           'text-size': 13,
           'text-anchor': 'top-left',
@@ -335,11 +347,13 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
       map.current.addSource('playstreets-data', { type: 'geojson', data: EMPTY_FC });
       map.current.addLayer({
         id: 'playstreets-glow', type: 'line', source: 'playstreets-data',
+        minzoom: 13,
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': PLAYSTREETS_COLOR, 'line-width': ['interpolate',['linear'],['zoom'],10,4,14,10,18,20], 'line-opacity': 0.15, 'line-blur': 4 },
+        paint: { 'line-color': PLAYSTREETS_COLOR, 'line-width': ['interpolate',['linear'],['zoom'],13,4,14,10,18,20], 'line-opacity': 0.15, 'line-blur': 4 },
       });
       map.current.addLayer({
         id: 'playstreets-lines', type: 'line', source: 'playstreets-data',
+        minzoom: 13,
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': PLAYSTREETS_COLOR, 'line-width': ['interpolate',['linear'],['zoom'],10,1.5,14,3,18,6], 'line-opacity': 0.85 },
       });
@@ -574,6 +588,15 @@ export const MapComponent = forwardRef<MapHandle, MapComponentProps>(({
     if (showPlaystreets) fetchPlaystreets();
     else { popupRef.current?.remove(); playstreetsLoaded.current = false; (map.current.getSource('playstreets-data') as mapboxgl.GeoJSONSource)?.setData(EMPTY_FC); }
   }, [ready, showPlaystreets, fetchPlaystreets]);
+
+  /* ── Toggle Test BBox ── */
+  useEffect(() => {
+    if (!map.current || !ready) return;
+    const vis = showTestBBox ? 'visible' : 'none';
+    for (const lid of ['test-bbox-fill', 'test-bbox-border', 'test-bbox-label']) {
+      if (map.current.getLayer(lid)) map.current.setLayoutProperty(lid, 'visibility', vis);
+    }
+  }, [ready, showTestBBox]);
 
   /* ── Traffic ── */
   useEffect(() => {
