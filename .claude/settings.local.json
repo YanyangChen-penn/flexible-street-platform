@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find e:Upenn_courseSpringflexible-street-platform -type f \\\\\\(-name *.sql -o -name *supabase* -o -name *database* \\\\\\))",
+      "WebSearch",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:walk.dvrpc.org)",
+      "WebFetch(domain:www.design.upenn.edu)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(py -3.13 -X utf8 \"e:\\\\Upenn_course\\\\Spring\\\\flexible-street-platform\\\\scripts\\\\generate_ppt.py\")"
+    ]
+  }
+}
