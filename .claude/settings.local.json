@@ -9,7 +9,10 @@
       "WebFetch(domain:www.design.upenn.edu)",
       "Bash(pip show:*)",
       "Bash(pip install:*)",
-      "Bash(py -3.13 -X utf8 \"e:\\\\Upenn_course\\\\Spring\\\\flexible-street-platform\\\\scripts\\\\generate_ppt.py\")"
+      "Bash(py -3.13 -X utf8 \"e:\\\\Upenn_course\\\\Spring\\\\flexible-street-platform\\\\scripts\\\\generate_ppt.py\")",
+      "Bash(wc -l E:/Upenn_course/Spring/flexible-street-platform/src/components/*.tsx)",
+      "WebFetch(domain:opendataphilly.org)",
+      "Bash(e:upenn_musasoftwareanacondaapplicationpython.exe -c \":*)"
     ]
   }
 }
